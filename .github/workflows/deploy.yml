@@ -1,4 +1,4 @@
-name: CI/CD — Build & Deploy to Azure VM
+name: CI/CD — Build & Deploy to Azure Web App
 
 on:
   push:
@@ -8,11 +8,9 @@ on:
 
 env:
   IMAGE_NAME: hireiq
+  WEBAPP_NAME: hireiq-app-5829
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 1: Build Docker image and push to GitHub Container Registry (GHCR)
-  # ─────────────────────────────────────────────────────────────────────────────
   build-and-push:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
@@ -57,57 +55,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Job 2: Deploy to Azure VM via SSH
-  # (only runs on pushes to main, not PRs)
-  # ─────────────────────────────────────────────────────────────────────────────
   deploy:
-    name: Deploy to Azure VM
+    name: Deploy to Azure Web App
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            set -e
-            echo "=== Logging in to GHCR ==="
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
-              -u ${{ github.actor }} --password-stdin
-
-            echo "=== Pulling latest image ==="
-            docker pull ghcr.io/${{ github.repository_owner }}/hireiq:latest
-
-            echo "=== Stopping old container (if any) ==="
-            docker stop hireiq || true
-            docker rm   hireiq || true
-
-            echo "=== Starting new container ==="
-            docker run -d \
-              --name hireiq \
-              --restart unless-stopped \
-              -p 80:5000 \
-              -e FLASK_ENV=production \
-              -e SECRET_KEY="${{ secrets.SECRET_KEY }}" \
-              -e USE_SBERT=true \
-              -e SBERT_MODEL=all-mpnet-base-v2 \
-              -e MAIL_SERVER=smtp.gmail.com \
-              -e MAIL_PORT=587 \
-              -e MAIL_USE_TLS=true \
-              -e MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
-              -e MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
-              -e MAIL_DEFAULT_SENDER="${{ secrets.MAIL_DEFAULT_SENDER }}" \
-              -v hireiq_uploads:/app/uploads \
-              -v hireiq_db:/app \
-              ghcr.io/${{ github.repository_owner }}/hireiq:latest
-
-            echo "=== Pruning old images ==="
-            docker image prune -f
-
-            echo "=== Done! HireIQ is live ==="
-            docker ps --filter name=hireiq
+          app-name: ${{ env.WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: 'ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest'
