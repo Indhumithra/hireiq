@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description"
+    content="AI-Powered Resume Screening System for Smart Hiring — NLP & LLM driven candidate ranking, bias detection, and HR analytics dashboard." />
+  <title>HireIQ — AI Resume Screening</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+  <!-- ── NAV ──────────────────────────────────────────────── -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-brand">
+      <div class="nav-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <path d="M14 2L24 8V20L14 26L4 20V8L14 2Z" fill="url(#logoGrad)" opacity="0.9" />
+          <path d="M10 14H18M14 10V18" stroke="white" stroke-width="2" stroke-linecap="round" />
+          <defs>
+            <linearGradient id="logoGrad" x1="4" y1="2" x2="24" y2="26" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#0EA5E9" />
+              <stop offset="1" stop-color="#10B981" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <span class="nav-title">HireIQ</span>
+      <span class="nav-badge">AI Powered</span>
+    </div>
+    <div class="nav-links">
+      <a href="#" class="nav-link active" data-page="dashboard" id="nav-dashboard">Dashboard</a>
+      <a href="#" class="nav-link" data-page="jobs" id="nav-jobs">Jobs</a>
+      <a href="#" class="nav-link" data-page="candidates" id="nav-candidates">Candidates</a>
+      <a href="#" class="nav-link" data-page="screening" id="nav-screening">Screening</a>
+    </div>
+    <div class="nav-actions" style="display: flex; align-items: center; gap: 20px;">
+      <div id="model-status" class="badge badge-blue"
+        style="font-size:10px; opacity:0.8; display:flex; align-items:center; gap:5px; padding: 4px 10px; border-radius: 20px;">
+        <span class="pulse-green"
+          style="width:6px; height:6px; background:#10B981; border-radius:50%; box-shadow:0 0 8px #10B981;"></span> AI
+        Model Active: <span style="font-weight:700">HF/mpnet-base-v2</span>
+      </div>
+      <div class="profile-menu" style="display: flex; align-items: center; gap: 20px;">
+        <span class="avatar"
+          style="width:36px; height:36px; background: linear-gradient(135deg, #0EA5E9, #10B981); color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);">
+          A
+        </span>
+        <div style="display:flex; flex-direction:column; line-height:1.3;">
+          <span style="font-size:14px; font-weight:700; color:var(--text-primary);">Admin Profile</span>
+          <a href="/"
+            style="font-size:12px; color:var(--red); text-decoration:none; font-weight:600; transition: opacity 0.2s;"
+            onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">Sign Out →</a>
+        </div>
+      </div>
+      <button class="btn-icon" id="themeToggle" title="Toggle theme"
+        style="border-left: 1px solid var(--border); padding-left: 20px; border-radius: 0;">☀️</button>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ─────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- ═══════════════════  DASHBOARD  ═══════════════════ -->
+    <section class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Overview Dashboard</h1>
+          <p class="page-subtitle">Real-time recruitment intelligence & analytics</p>
+        </div>
+        <button class="btn btn-primary" onclick="refreshDashboard()">
+          <span>↻</span> Refresh
+        </button>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card" style="--accent:#0EA5E9">
+          <div class="stat-icon">💼</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-jobs">—</div>
+            <div class="stat-label">Active Jobs</div>
+          </div>
+          <div class="stat-trend positive">↑</div>
+        </div>
+        <div class="stat-card" style="--accent:#10B981">
+          <div class="stat-icon">👤</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-candidates">—</div>
+            <div class="stat-label">Total Candidates</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent:#059669; overflow:visible; cursor:pointer;"
+          onmouseenter="document.getElementById('shortlist-tooltip').style.display='block'; this.style.zIndex='10';"
+          onmouseleave="document.getElementById('shortlist-tooltip').style.display='none'; this.style.zIndex='1';">
+          <div class="stat-icon">✅</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-shortlisted">—</div>
+            <div class="stat-label">Shortlisted</div>
+          </div>
+          <!-- Custom tool-tip -->
+          <div id="shortlist-tooltip"
+            style="display:none; position:absolute; top:calc(100% + 10px); left:0; width:280px; background:var(--bg-surface); border:1px solid var(--border); box-shadow:var(--shadow-card); border-radius:var(--radius); padding:16px; z-index:999;">
+            <div
+              style="font-size:11px; text-transform:uppercase; color:var(--text-muted); margin-bottom:12px; font-weight:700; letter-spacing:0.5px;">
+              Recently Shortlisted</div>
+            <div id="shortlist-tooltip-content" style="display:flex; flex-direction:column; gap:8px;">
+              <span class="text-muted" style="font-size:12px;">No data yet...</span>
+            </div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent:#D97706">
+          <div class="stat-icon">📊</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-avgscore">—</div>
+            <div class="stat-label">Avg Match Score</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent:#DC2626">
+          <div class="stat-icon">⚖️</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-bias">—</div>
+            <div class="stat-label">Avg Bias Score</div>
+          </div>
+        </div>
+        <div class="stat-card" style="--accent:#0EA5E9">
+          <div class="stat-icon">🔍</div>
+          <div class="stat-info">
+            <div class="stat-value" id="stat-screenings">—</div>
+            <div class="stat-label">Total Screenings</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <div class="chart-card">
+          <h3 class="chart-title">Screening Status Distribution</h3>
+          <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3 class="chart-title">Top Skills Gap Analysis</h3>
+          <div class="chart-wrap"><canvas id="skillsChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="card mt-4">
+        <div class="card-header"
+          style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <h3>Recent Screenings</h3>
+          <div style="display:flex; gap:10px;">
+            <input type="text" id="recentSearch" class="form-control table-filter-control"
+              placeholder="Search candidates or jobs..." onkeyup="filterRecentScreenings()"
+              style="width:250px; font-size:13px; padding:8px 12px; border-radius:6px;">
+            <select id="recentStatus" class="form-control table-filter-control" onchange="filterRecentScreenings()"
+              style="font-size:13px; padding:8px 12px; border-radius:6px;">
+              <option value="all">All Statuses</option>
+              <option value="shortlisted">Shortlisted</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap" style="max-height: 420px; overflow-y: auto;">
+          <table class="data-table" id="recentTable">
+            <thead>
+              <tr>
+                <th>Candidate</th>
+                <th>Job</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Notification</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="recentBody">
+              <tr>
+                <td colspan="5" class="empty-row">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════  JOBS  ═══════════════════════ -->
+    <section class="page" id="page-jobs">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Job Postings</h1>
+          <p class="page-subtitle">Manage and analyze job descriptions</p>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('jobModal')">
+          + Post New Job
+        </button>
+      </div>
+
+      <!-- Search & Filter -->
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="jobSearch" placeholder="Search jobs by title, department..."
+            oninput="filterJobs()" />
+        </div>
+        <select class="filter-select" id="jobStatusFilter" onchange="filterJobs()">
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      <!-- Jobs List -->
+      <div class="jobs-grid" id="jobsGrid">
+        <div class="loading-state">Loading jobs...</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════  CANDIDATES  ════════════════ -->
+    <section class="page" id="page-candidates">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Candidate Pool</h1>
+          <p class="page-subtitle">Upload and manage candidate resumes</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+          ↑ Upload Resumes
+        </button>
+      </div>
+
+      <!-- Candidate Pool Overview Stats -->
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+        <div class="stat-card"
+          style="padding: 15px; background: rgba(14, 165, 233, 0.05); border: 1px solid rgba(14, 165, 233, 0.1);">
+          <div
+            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">
+            Total Profiles</div>
+          <div id="pool-total" style="font-size: 24px; font-weight: 800; color: #0EA5E9;">0</div>
+        </div>
+        <div class="stat-card"
+          style="padding: 15px; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.1);">
+          <div
+            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">
+            Top Expertise</div>
+          <div id="pool-top-skill"
+            style="font-size: 20px; font-weight: 800; color: #10B981; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            Loading...</div>
+        </div>
+        <div class="stat-card"
+          style="padding: 15px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.1);">
+          <div
+            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">
+            High Qualifiers</div>
+          <div id="pool-masters" style="font-size: 24px; font-weight: 800; color: #F59E0B;">0</div>
+        </div>
+        <div class="stat-card"
+          style="padding: 15px; background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.1);">
+          <div
+            style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">
+            Tech Density</div>
+          <div id="pool-tech" style="font-size: 24px; font-weight: 800; color: #8B5CF6;">88%</div>
+        </div>
+      </div>
+
+      <!-- Upload Zone -->
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📄</div>
+        <div class="upload-text">
+          <strong>Drag & drop resumes here</strong>
+          <span>or <a href="#" onclick="document.getElementById('fileInput').click()">browse files</a></span>
+          <span class="upload-hint">Supports PDF, DOCX, TXT — up to 16MB each</span>
+        </div>
+        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.txt" style="display:none"
+          onchange="handleFileSelect(event)" />
+      </div>
+      <div id="uploadProgress" style="display:none"></div>
+
+      <!-- Candidates Table -->
+      <div class="card mt-4">
+        <div class="card-header">
+          <h3>All Candidates (<span id="candidateCount">0</span>)</h3>
+          <div class="search-wrap mini">
+            <input type="text" class="search-input" id="candidateSearch" placeholder="Search..."
+              oninput="filterCandidates()" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Skills</th>
+                <th>Experience</th>
+                <th>Education</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="candidatesBody">
+              <tr>
+                <td colspan="7" class="empty-row">No candidates yet. Upload resumes to get started.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════  SCREENING  ═════════════════ -->
+    <section class="page" id="page-screening">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">AI Screening Engine</h1>
+          <p class="page-subtitle">Rank candidates using NLP & Sentence-BERT semantic matching</p>
+        </div>
+      </div>
+
+      <!-- Screening Setup -->
+      <div class="screening-setup card">
+        <h3 class="card-title">Run Screening</h3>
+        <div class="setup-grid">
+          <div class="form-group">
+            <label class="form-label">Select Job Position</label>
+            <select class="form-control" id="screeningJob" onchange="loadJobDetails()">
+              <option value="">— Choose a job —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Semantic Weight</label>
+            <div class="slider-wrap">
+              <input type="range" class="slider" id="wSemantic" min="0" max="100" value="35"
+                oninput="updateWeightDisplay()" />
+              <span class="slider-val" id="wSemanticVal">35%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Skills Weight</label>
+            <div class="slider-wrap">
+              <input type="range" class="slider" id="wSkills" min="0" max="100" value="30"
+                oninput="updateWeightDisplay()" />
+              <span class="slider-val" id="wSkillsVal">30%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location Weight</label>
+            <div class="slider-wrap">
+              <input type="range" class="slider" id="wLocation" min="0" max="100" value="15"
+                oninput="updateWeightDisplay()" />
+              <span class="slider-val" id="wLocationVal">15%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Job Preview -->
+        <div class="job-preview" id="jobPreview" style="display:none">
+          <div class="preview-badges" id="previewBadges"></div>
+        </div>
+
+        <div class="screening-actions">
+          <button class="btn btn-primary btn-lg" id="runScreenBtn" onclick="runScreening()" disabled>
+            <span class="btn-icon-inline">🤖</span> Run AI Screening
+          </button>
+          <span class="screening-hint" id="screeningHint">Select a job to screen candidates</span>
+        </div>
+
+        <!-- Progress -->
+        <div class="screening-progress" id="screeningProgress" style="display:none">
+          <div class="progress-bar-outer">
+            <div class="progress-bar-inner" id="progressBar" style="width:0%"></div>
+          </div>
+          <p class="progress-text" id="progressText">Initializing...</p>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div class="results-section" id="resultsSection" style="display:none">
+        <div class="results-header">
+          <h3 class="results-title" id="resultsTitle">Results</h3>
+          <div style="display:flex;gap:12px;align-items:center">
+            <div class="results-stats" id="resultsStats"></div>
+            <button class="btn btn-sm btn-ghost" onclick="downloadReport()" id="downloadReportBtn"
+              title="Export as CSV">
+              📥 Download Report
+            </button>
+          </div>
+        </div>
+
+        <!-- Score Distribution Chart -->
+        <div class="chart-card mb-4">
+          <h3 class="chart-title">Score Distribution</h3>
+          <div class="chart-wrap"><canvas id="scoreDistChart"></canvas></div>
+        </div>
+
+        <!-- Results Filter -->
+        <div class="filter-bar mb-3">
+          <div class="status-tabs" id="statusTabs">
+            <button class="status-tab active" onclick="filterResults('all')">All</button>
+            <button class="status-tab shortlisted" onclick="filterResults('shortlisted')">✅ Shortlisted</button>
+            <button class="status-tab pending" onclick="filterResults('pending')">🕐 Pending</button>
+            <button class="status-tab rejected" onclick="filterResults('rejected')">❌ Rejected</button>
+          </div>
+        </div>
+
+        <!-- Results Cards -->
+        <div class="results-grid" id="resultsGrid"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ════════════════  MODALS  ════════════════ -->
+
+  <!-- Post Job Modal -->
+  <div class="modal-overlay" id="jobModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title">Post New Job</h2>
+        <button class="modal-close" onclick="closeModal('jobModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label required">Job Title</label>
+            <input type="text" class="form-control" id="jTitle" placeholder="e.g. Senior Data Scientist" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Department</label>
+            <input type="text" class="form-control" id="jDept" placeholder="e.g. Engineering" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <input type="text" class="form-control" id="jLocation" placeholder="e.g. Bangalore / Remote" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Employment Type</label>
+            <select class="form-control" id="jType">
+              <option>Full-time</option>
+              <option>Part-time</option>
+              <option>Contract</option>
+              <option>Internship</option>
+              <option>Remote</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Min Experience (yrs)</label>
+            <input type="number" class="form-control" id="jExpMin" value="2" min="0" max="20" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Experience (yrs)</label>
+            <input type="number" class="form-control" id="jExpMax" value="6" min="0" max="30" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Required Education</label>
+            <select class="form-control" id="jEdu">
+              <option>Bachelor's Degree</option>
+              <option>Master's Degree</option>
+              <option>PhD / Doctorate</option>
+              <option>Diploma / Associate</option>
+              <option>High School</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Salary Range (₹ LPA)</label>
+            <div class="input-row">
+              <input type="number" class="form-control" id="jSalMin" placeholder="Min" />
+              <span>—</span>
+              <input type="number" class="form-control" id="jSalMax" placeholder="Max" />
+            </div>
+          </div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label required">Job Description</label>
+          <textarea class="form-control form-textarea" id="jDesc"
+            placeholder="Paste the full job description here. Skills, responsibilities, and requirements will be auto-extracted by AI..."
+            rows="10"></textarea>
+          <div class="form-hint">💡 Skills and requirements will be automatically extracted from the description</div>
+        </div>
+
+        <!-- Bias Preview -->
+        <div class="bias-preview" id="biasPreview" style="display:none">
+          <h4>⚖️ Bias Analysis Preview</h4>
+          <div id="biasContent"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="previewBiasJob()">⚖️ Check Bias</button>
+        <button class="btn btn-ghost" onclick="closeModal('jobModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitJob()">Post Job →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Job Details Modal -->
+  <div class="modal-overlay" id="jobDetailsModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h2 class="modal-title" id="jobDetailsTitle">Job Details</h2>
+        <button class="modal-close" onclick="closeModal('jobDetailsModal')">✕</button>
+      </div>
+      <div class="modal-body" id="jobDetailsBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('jobDetailsModal')">Close</button>
+        <button class="btn btn-primary" onclick="screenThisJob()">🤖 Screen Candidates</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidate Details Modal -->
+  <div class="modal-overlay" id="candidateModal">
+    <div class="modal modal-xl">
+      <div class="modal-header">
+        <h2 class="modal-title" id="candidateModalTitle">Candidate Profile</h2>
+        <button class="modal-close" onclick="closeModal('candidateModal')">✕</button>
+      </div>
+      <div class="modal-body" id="candidateModalBody">
+        <!-- Dynamically filled, but we'll add a chart area -->
+        <div id="candidateDetailGrid" style="display:grid; grid-template-columns: 1fr 350px; gap:20px;">
+          <div id="candidateInfoPanel"></div>
+          <div id="candidateChartPanel" class="card"
+            style="padding:15px; background:var(--bg-surface); border:1px solid var(--border);">
+            <h4
+              style="margin-bottom:15px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary);">
+              Fit Analysis Matrix</h4>
+            <div style="height:300px; width:100%"><canvas id="candidateFitChart"></canvas></div>
+            <div id="fitLegend" style="margin-top:20px; font-size:12px; line-height:1.6; color:var(--text-secondary);">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <button class="btn btn-sm btn-ghost" onclick="closeModal('candidateModal')">✕ Close</button>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-sm btn-danger"
+            onclick="closeModal('candidateModal'); deleteCandidate(null, state.viewingCandidateId)">🗑 Delete
+            Profile</button>
+          <button class="btn btn-sm btn-gray"
+            onclick="toast('Candidate rejected', 'info'); closeModal('candidateModal')">❌ Reject</button>
+          <button class="btn btn-sm btn-primary" onclick="toast('Interview scheduler coming soon!', 'info')">🗓 Schedule
+            Interview</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+
+</html>
