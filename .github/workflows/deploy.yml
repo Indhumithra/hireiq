@@ -62,11 +62,25 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
+      - name: Login to Azure
+        uses: azure/login@v2
         with:
-          app-name: ${{ env.WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: 'ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest'
-          slot-name: 'production'
-          resource-group-name: 'hireiq-rg-app'
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set Web App container image
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az webapp config container set \
+              --resource-group hireiq-rg-app \
+              --name hireiq-app-5829 \
+              --container-image-name ghcr.io/${{ github.repository_owner }}/hireiq:latest \
+              --container-registry-url https://ghcr.io
+
+      - name: Restart Web App
+        uses: azure/CLI@v2
+        with:
+          inlineScript: |
+            az webapp restart \
+              --resource-group hireiq-rg-app \
+              --name hireiq-app-5829
