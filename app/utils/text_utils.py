@@ -135,8 +135,18 @@ def extract_name(text: str) -> str | None:
         if 3 < len(line) < 60 and not any(c in line for c in ['@', 'http', '.com', '|', '/']):
             words = line.split()
             if 1 <= len(words) <= 5 and all(w[0].isupper() or '-' in w for w in words if w.isalpha()):
-                return line
-    return lines[0] if lines else None
+                # Verify the line is actually readable text (mostly letters/spaces)
+                alpha_count = sum(1 for c in line if c.isalpha())
+                if alpha_count >= len(line.replace(' ', '')) * 0.7:
+                    return line
+    # Don't return garbled first line — return None instead
+    if lines:
+        first = lines[0]
+        alpha_count = sum(1 for c in first if c.isalpha())
+        if alpha_count >= len(first.replace(' ', '')) * 0.7:
+            return first
+    return None
+
 
 
 def extract_skills(text: str) -> list:

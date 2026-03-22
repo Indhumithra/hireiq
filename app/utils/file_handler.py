@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from werkzeug.utils import secure_filename
 from flask import current_app
@@ -27,19 +28,26 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
     """Extract raw text from PDF, DOCX, or TXT file."""
     try:
         if file_type == 'pdf':
-            return _extract_from_pdf(file_path)
+            text = _extract_from_pdf(file_path)
         elif file_type in ('docx', 'doc'):
-            return _extract_from_docx(file_path)
+            text = _extract_from_docx(file_path)
         elif file_type == 'txt':
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read()
+                text = f.read()
+        else:
+            text = ''
+        # Always sanitize the extracted text
+        return _sanitize_text(text)
     except Exception as e:
         current_app.logger.error(f"Error extracting text from {file_path}: {e}")
     return ''
 
 
 def _extract_from_pdf(file_path: str) -> str:
-    """Extract text from PDF using pdfplumber."""
+    """Extract text from PDF. Tries pdfplumber first, then PyPDF2, validates quality."""
+    text = ''
+
+    # Attempt 1: pdfplumber
     try:
         import pdfplumber
         text_parts = []
@@ -48,26 +56,69 @@ def _extract_from_pdf(file_path: str) -> str:
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(page_text)
-        return '\n'.join(text_parts)
-    except Exception as e:
-        # Fallback: try PyPDF2
+        text = '\n'.join(text_parts)
+    except Exception:
+        pass
+
+    # If pdfplumber gave garbled/empty text, try PyPDF2
+    if not _is_good_text(text):
         try:
             import PyPDF2
             with open(file_path, 'rb') as f:
                 reader = PyPDF2.PdfReader(f)
-                return '\n'.join(
+                text2 = '\n'.join(
                     page.extract_text() or '' for page in reader.pages
                 )
+            # Use whichever extraction is better quality
+            if _is_good_text(text2) or _text_quality_score(text2) > _text_quality_score(text):
+                text = text2
         except Exception:
-            # Fallback 2: Sometimes files with .pdf extensions are just raw text files disguised as PDFs
-            try:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    if len(content.strip()) > 10:
-                        return content
-            except Exception:
-                pass
-            return ''
+            pass
+
+    # Fallback: maybe it's a raw text file with .pdf extension
+    if not _is_good_text(text):
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                if len(content.strip()) > 10 and _is_good_text(content):
+                    text = content
+        except Exception:
+            pass
+
+    return text
+
+
+def _is_good_text(text: str) -> bool:
+    """Check if extracted text is readable (not garbled/binary)."""
+    if not text or len(text.strip()) < 20:
+        return False
+    return _text_quality_score(text) >= 0.70
+
+
+def _text_quality_score(text: str) -> float:
+    """Score how 'readable' text is. Returns 0.0 to 1.0.
+    Readable text has mostly printable ASCII + common unicode characters."""
+    if not text:
+        return 0.0
+    # Count characters that are normal readable text
+    readable = sum(
+        1 for c in text
+        if c.isalnum() or c.isspace() or c in '.,;:!?@#$%&*()-_+=\'"/<>[]{}|\\~`'
+    )
+    return readable / len(text)
+
+
+def _sanitize_text(text: str) -> str:
+    """Remove non-printable and garbled characters from extracted text."""
+    if not text:
+        return ''
+    # Remove control characters (except newline, tab, carriage return)
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+    # Replace sequences of unusual unicode with a space
+    text = re.sub(r'[^\x20-\x7E\xA0-\xFF\n\t\r]', ' ', text)
+    # Collapse multiple spaces
+    text = re.sub(r' {3,}', '  ', text)
+    return text.strip()
 
 
 def _extract_from_docx(file_path: str) -> str:
